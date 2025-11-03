@@ -28,17 +28,21 @@ export default async function ListingsPage({
     .select(`
       *,
       user:users(nickname),
-      images:listing_images(image_url)
+      images:listing_images(image_url),
+      category:categories(name_uk, slug)
     `)
-    .eq("status", "active")
+    .in("status", ["active", "approved"])
 
   // Apply filters
   if (params.search) {
     query = query.or(`title.ilike.%${params.search}%,description.ilike.%${params.search}%`)
   }
 
-  if (params.category) {
-    query = query.eq("category_slug", params.category)
+  if (params.category && params.category !== "all") {
+    const { data: cat } = await supabase.from("categories").select("id").eq("slug", params.category).single()
+    if (cat) {
+      query = query.eq("category_id", cat.id)
+    }
   }
 
   if (params.minPrice) {

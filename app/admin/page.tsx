@@ -29,7 +29,7 @@ export default async function AdminPage() {
   const { count: activeListings } = await supabase
     .from("listings")
     .select("*", { count: "exact", head: true })
-    .eq("status", "active")
+    .in("status", ["active", "approved"])
 
   // Fetch pending listings for moderation
   const { data: pendingListingsData } = await supabase

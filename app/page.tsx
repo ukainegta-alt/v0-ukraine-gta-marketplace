@@ -18,7 +18,7 @@ export default async function HomePage() {
       images:listing_images(image_url)
     `)
     .eq("is_vip", true)
-    .eq("status", "active")
+    .in("status", ["active", "approved"])
     .order("created_at", { ascending: false })
     .limit(4)
 
@@ -30,7 +30,7 @@ export default async function HomePage() {
       user:users(nickname),
       images:listing_images(image_url)
     `)
-    .eq("status", "active")
+    .in("status", ["active", "approved"])
     .order("created_at", { ascending: false })
     .limit(8)
 

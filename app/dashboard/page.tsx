@@ -26,7 +26,7 @@ export default async function DashboardPage() {
       images:listing_images(image_url)
     `)
     .eq("user_id", user.id)
-    .eq("status", "active")
+    .in("status", ["active", "approved"])
     .order("created_at", { ascending: false })
 
   const { data: pendingListings } = await supabase

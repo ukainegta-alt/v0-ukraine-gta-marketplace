@@ -9,7 +9,10 @@ interface ListingCardProps {
     title: string
     description: string
     price: number
-    category: string
+    category?: {
+      name_uk: string
+      slug: string
+    }
     location?: string
     is_vip: boolean
     created_at: string
