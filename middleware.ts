@@ -1,10 +1,46 @@
 import { NextResponse } from "next/server"
 import type { NextRequest } from "next/server"
-import { jwtVerify } from "jose"
 
-const SECRET_KEY = new TextEncoder().encode(process.env.JWT_SECRET || "ukrainegta-secret-key-change-in-production")
+const SECRET_KEY = process.env.JWT_SECRET || "ukrainegta-secret-key-change-in-production"
 
 const publicPaths = ["/", "/auth/login", "/auth/signup", "/listings"]
+
+// Custom JWT verification function using Web Crypto API
+async function verifyToken(token: string): Promise<any | null> {
+  try {
+    const parts = token.split(".")
+    if (parts.length !== 3) return null
+
+    const [headerB64, payloadB64, signatureB64] = parts
+
+    // Verify signature
+    const encoder = new TextEncoder()
+    const data = encoder.encode(`${headerB64}.${payloadB64}`)
+    const keyData = encoder.encode(SECRET_KEY)
+
+    const cryptoKey = await crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, [
+      "verify",
+    ])
+
+    const signature = Uint8Array.from(atob(signatureB64.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0))
+
+    const isValid = await crypto.subtle.verify("HMAC", cryptoKey, signature, data)
+    if (!isValid) return null
+
+    // Decode payload
+    const payloadJson = atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/"))
+    const payload = JSON.parse(payloadJson)
+
+    // Check expiration
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      return null
+    }
+
+    return payload.user
+  } catch {
+    return null
+  }
+}
 
 export async function middleware(request: NextRequest) {
   const token = request.cookies.get("auth_token")?.value
@@ -16,12 +52,7 @@ export async function middleware(request: NextRequest) {
   // Verify token
   let user = null
   if (token) {
-    try {
-      const { payload } = await jwtVerify(token, SECRET_KEY)
-      user = payload.user
-    } catch {
-      // Invalid token
-    }
+    user = await verifyToken(token)
   }
 
   // Redirect to login if accessing protected route without auth

@@ -48,7 +48,7 @@ export default async function HomePage() {
     <div className="flex flex-col">
       {/* Hero Section */}
       <section className="relative bg-gradient-to-br from-primary/10 via-background to-accent/10 border-b">
-        <div className="container py-16 md:py-24">
+        <div className="container py-16 md:py-20">
           <div className="flex flex-col items-center text-center gap-6 max-w-3xl mx-auto">
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-primary/10 text-primary text-sm font-medium">
               <Sparkles className="h-4 w-4" />

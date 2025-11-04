@@ -2,9 +2,8 @@
 
 import { cookies } from "next/headers"
 import { createClient } from "@/lib/supabase/server"
-import { SignJWT, jwtVerify } from "jose"
 
-const SECRET_KEY = new TextEncoder().encode(process.env.JWT_SECRET || "ukrainegta-secret-key-change-in-production")
+const SECRET_KEY = process.env.JWT_SECRET || "ukrainegta-secret-key-change-in-production"
 
 export interface User {
   id: string
@@ -22,15 +21,63 @@ async function hashPassword(password: string): Promise<string> {
   return hashArray.map((b) => b.toString(16).padStart(2, "0")).join("")
 }
 
-// Create JWT token
+// Simple JWT implementation using Web Crypto API
 async function createToken(user: User): Promise<string> {
-  return await new SignJWT({ user }).setProtectedHeader({ alg: "HS256" }).setExpirationTime("7d").sign(SECRET_KEY)
+  const header = { alg: "HS256", typ: "JWT" }
+  const payload = {
+    user,
+    exp: Math.floor(Date.now() / 1000) + 60 * 60 * 24 * 7, // 7 days
+  }
+
+  const encoder = new TextEncoder()
+  const headerB64 = btoa(JSON.stringify(header)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+  const payloadB64 = btoa(JSON.stringify(payload)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=/g, "")
+
+  const data = encoder.encode(`${headerB64}.${payloadB64}`)
+  const keyData = encoder.encode(SECRET_KEY)
+
+  const cryptoKey = await crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, ["sign"])
+
+  const signature = await crypto.subtle.sign("HMAC", cryptoKey, data)
+  const signatureB64 = btoa(String.fromCharCode(...new Uint8Array(signature)))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=/g, "")
+
+  return `${headerB64}.${payloadB64}.${signatureB64}`
 }
 
 // Verify JWT token
 async function verifyToken(token: string): Promise<User | null> {
   try {
-    const { payload } = await jwtVerify(token, SECRET_KEY)
+    const parts = token.split(".")
+    if (parts.length !== 3) return null
+
+    const [headerB64, payloadB64, signatureB64] = parts
+
+    // Verify signature
+    const encoder = new TextEncoder()
+    const data = encoder.encode(`${headerB64}.${payloadB64}`)
+    const keyData = encoder.encode(SECRET_KEY)
+
+    const cryptoKey = await crypto.subtle.importKey("raw", keyData, { name: "HMAC", hash: "SHA-256" }, false, [
+      "verify",
+    ])
+
+    const signature = Uint8Array.from(atob(signatureB64.replace(/-/g, "+").replace(/_/g, "/")), (c) => c.charCodeAt(0))
+
+    const isValid = await crypto.subtle.verify("HMAC", cryptoKey, signature, data)
+    if (!isValid) return null
+
+    // Decode payload
+    const payloadJson = atob(payloadB64.replace(/-/g, "+").replace(/_/g, "/"))
+    const payload = JSON.parse(payloadJson)
+
+    // Check expiration
+    if (payload.exp && payload.exp < Math.floor(Date.now() / 1000)) {
+      return null
+    }
+
     return payload.user as User
   } catch {
     return null
